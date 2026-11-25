@@ -1562,12 +1562,20 @@ pcap_compile(pcap_t *p, struct bpf_program *program,
 	 * used in external code and/or at a later time and/or after being
 	 * stored in a file or transmitted over the network.
 	 */
-	if (pcapint_validate_filter(program->bf_insns, program->bf_len))
-		rc = 0; /* We're all okay */
-	else {
-		snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
-		    "%s: program validation failed", __func__);
-		rc = PCAP_ERROR;
+	{
+		char validation_error[PCAP_ERRBUF_SIZE];
+
+		validation_error[0] = '\0';
+		if (pcapint_validate_filter_snaplen(program->bf_insns,
+		    program->bf_len, (u_int)cstate.snaplen, validation_error,
+		    sizeof(validation_error)))
+			rc = 0; /* We're all okay */
+		else {
+			snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
+			    "%s: program validation failed: %s", __func__,
+			    validation_error);
+			rc = PCAP_ERROR;
+		}
 	}
 
 quit:
@@ -7688,6 +7696,21 @@ gen_load_internal(compiler_state_t *cstate, int proto, struct arth *inst,
 	struct block *b = NULL; // protocol checks
 	struct slist *s = NULL; // the variable part of an absolute offset
 	u_int constpart = 0;    // the constant part of an absolute offset
+	u_int access_size;
+	bpf_u_int32 access_offset;
+
+	switch (size_code) {
+	case BPF_B:
+		access_size = 1;
+		break;
+	case BPF_H:
+		access_size = 2;
+		break;
+	default:
+		access_size = 4;
+		break;
+	}
+
 	switch (proto) {
 	default:
 		bpf_error(cstate, "'%s' does not support the index operation", pqkw(proto));
@@ -7893,6 +7916,27 @@ gen_load_internal(compiler_state_t *cstate, int proto, struct arth *inst,
 		break;
 	}
 
+	/*
+	 * If the offset is known at compile time, reject it if adding the
+	 * constant part would wrap around in 32 bits or if the resulting
+	 * access cannot fit into a packet captured with this snapshot
+	 * length.  Without this check the optimizer can fold a wrapped
+	 * offset into an unrelated in-bounds packet access.
+	 */
+	if (inst->is_constant) {
+		if (inst->constant_value > UINT32_MAX - constpart)
+			bpf_error(cstate,
+			    "packet offset %u + %u overflows 32 bits",
+			    inst->constant_value, constpart);
+		access_offset = constpart + inst->constant_value;
+		if (access_offset > (u_int)cstate->snaplen ||
+		    access_size > (u_int)cstate->snaplen - access_offset)
+			bpf_error(cstate,
+			    "packet access at offset %u size %u exceeds snapshot length %d",
+			    access_offset, access_size, cstate->snaplen);
+	}
+	inst->is_constant = false;
+
 	if (b)
 		inst->b = inst->b ? gen_and(inst->b, b) : b;
 	// NULL is a valid value for 's'.
@@ -7989,6 +8033,8 @@ gen_loadi_internal(compiler_state_t *cstate, bpf_u_int32 val)
 {
 	struct arth *a = new_arth(cstate);
 	alloc_reg_arth(cstate, a);
+	a->is_constant = true;
+	a->constant_value = val;
 	a->s = NEW_STMT_LD_IMM(cstate, val);
 	sappend(a->s, NEW_STMT_ST_M(cstate, a->regno));
 	return a;
@@ -8044,6 +8090,8 @@ gen_neg(compiler_state_t *cstate, struct arth *a_arg)
 		 * interpreter (see the comment in gencode.h).
 		 */
 		a->s->s.k = UINT_NEG(a->s->s.k);
+		a->is_constant = true;
+		a->constant_value = a->s->s.k;
 	} else {
 		/*
 		 * Assume the worst case scenario and calculate the negative of
@@ -8055,6 +8103,8 @@ gen_neg(compiler_state_t *cstate, struct arth *a_arg)
 		sappend(a->s, xfer_to_a(cstate, a));
 		sappend(a->s, NEW_STMT_NEG(cstate));
 		sappend(a->s, NEW_STMT_ST_M(cstate, a->regno));
+		if (a->is_constant)
+			a->constant_value = UINT_NEG(a->constant_value);
 	}
 
 	return a;
@@ -8107,6 +8157,60 @@ gen_arth(compiler_state_t *cstate, int code, struct arth *a0_arg,
 				bpf_error(cstate, ERRSTR_SHIFT_BY_MORE);
 			break;
 		}
+
+	if (a0->is_constant && a1->is_constant) {
+		switch (code) {
+		case BPF_ADD:
+			a0->constant_value += a1->constant_value;
+			break;
+		case BPF_SUB:
+			a0->constant_value -= a1->constant_value;
+			break;
+		case BPF_MUL:
+			a0->constant_value *= a1->constant_value;
+			break;
+		case BPF_DIV:
+			if (a1->constant_value == 0)
+				a0->is_constant = false;
+			else
+				a0->constant_value /= a1->constant_value;
+			break;
+		case BPF_MOD:
+			if (a1->constant_value == 0)
+				a0->is_constant = false;
+			else
+				a0->constant_value %= a1->constant_value;
+			break;
+		case BPF_AND:
+			a0->constant_value &= a1->constant_value;
+			break;
+		case BPF_OR:
+			a0->constant_value |= a1->constant_value;
+			break;
+		case BPF_XOR:
+			a0->constant_value ^= a1->constant_value;
+			break;
+		case BPF_LSH:
+			if (a1->constant_value > 31)
+				a0->is_constant = false;
+			else
+				a0->constant_value = UINT32_LSH(
+				    a0->constant_value, a1->constant_value);
+			break;
+		case BPF_RSH:
+			if (a1->constant_value > 31)
+				a0->is_constant = false;
+			else
+				a0->constant_value = UINT32_RSH(
+				    a0->constant_value, a1->constant_value);
+			break;
+		default:
+			a0->is_constant = false;
+			break;
+		}
+	} else {
+		a0->is_constant = false;
+	}
 
 	s0 = xfer_to_x(cstate, a1);
 	s1 = xfer_to_a(cstate, a0);
@@ -8191,6 +8295,8 @@ new_arth(compiler_state_t *cstate)
 {
 	struct arth *ret = (struct arth *)newchunk(cstate, sizeof(*ret));
 	ret->regno = -1;
+	ret->is_constant = false;
+	ret->constant_value = 0;
 	return ret;
 }
 

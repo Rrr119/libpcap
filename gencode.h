@@ -22,6 +22,7 @@
 #ifndef gencode_h
 #define gencode_h
 
+#include <stdbool.h>
 #include "pcap/funcattrs.h"
 /*
  * pcap/bpf.h (a public header) needs u_char, u_short and u_int, which can be
@@ -325,6 +326,8 @@ struct arth {
 	struct block *b;	/* protocol checks */
 	struct slist *s;	/* stmt list */
 	int regno;		/* virtual register number of result */
+	bool is_constant;	/* true if constant_value is known */
+	bpf_u_int32 constant_value;
 };
 
 struct qual {

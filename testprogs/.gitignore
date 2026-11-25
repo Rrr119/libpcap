@@ -8,6 +8,7 @@ Makefile
 /enumeratetest
 /fcodetest
 /filtertest
+/filtervalidationtest
 /findalldevstest
 /findalldevstest-perf
 /nonblocktest

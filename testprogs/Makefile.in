@@ -81,6 +81,7 @@ SRC = @VALGRINDTEST_SRC@ \
 	enumeratetest.c \
 	fcodetest.c \
 	filtertest.c \
+	filtervalidationtest.c \
 	findalldevstest-perf.c \
 	findalldevstest.c \
 	opendeadtest.c \
@@ -132,6 +133,11 @@ fcodetest: $(srcdir)/fcodetest.c $(srcdir)/test-util.c ../libpcap.a
 
 filtertest: $(srcdir)/filtertest.c $(srcdir)/test-util.c ../libpcap.a
 	$(CC) $(FULL_CFLAGS) -I. -L. -o $@ $(srcdir)/filtertest.c \
+	    $(srcdir)/test-util.c \
+	    ../libpcap.a $(LIBS)
+
+filtervalidationtest: $(srcdir)/filtervalidationtest.c $(srcdir)/test-util.c ../libpcap.a
+	$(CC) $(FULL_CFLAGS) -I. -L. -o $@ $(srcdir)/filtervalidationtest.c \
 	    $(srcdir)/test-util.c \
 	    ../libpcap.a $(LIBS)
 

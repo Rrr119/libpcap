@@ -362,6 +362,7 @@ EXTRA_DIST = \
 	testprogs/enumeratetest.c \
 	testprogs/fcodetest.c \
 	testprogs/filtertest.c \
+	testprogs/filtervalidationtest.c \
 	testprogs/findalldevstest.c \
 	testprogs/findalldevstest.supp \
 	testprogs/findalldevstest-perf.c \
@@ -765,6 +766,10 @@ distclean: clean
 
 check: testprogs
 	LANG=C $(PERL) $(srcdir)/testprogs/TESTrun
+	testprogs/filtervalidationtest \
+	    $(srcdir)/tests/filter-validation/valid.tsv \
+	    $(srcdir)/tests/filter-validation/invalid.tsv \
+	    $(srcdir)/tests/filter-validation/valid.golden
 	testprogs/opendeadtest EN10MB
 
 extags: $(TAGFILES)

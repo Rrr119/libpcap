@@ -3704,6 +3704,10 @@ endif()
 if(PERL)
     add_custom_target(check
         COMMAND ${PERL} ${CMAKE_SOURCE_DIR}/testprogs/TESTrun
+        COMMAND $<TARGET_FILE:filtervalidationtest>
+            ${CMAKE_SOURCE_DIR}/tests/filter-validation/valid.tsv
+            ${CMAKE_SOURCE_DIR}/tests/filter-validation/invalid.tsv
+            ${CMAKE_SOURCE_DIR}/tests/filter-validation/valid.golden
         DEPENDS testprogs)
 endif()
 

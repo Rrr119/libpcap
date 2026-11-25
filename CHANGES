@@ -1,5 +1,12 @@
 DayOfTheWeek, Month DD, YYYY / The Tcpdump Group
   Summary for 1.11.2 libpcap release (so far!)
+    Packet filtering:
+      In pcap_compile() validate the generated filter program, including
+        jump targets, and reject constant packet offsets that overflow or
+        cannot fit into the snapshot length.
+    Building and testing:
+      Add a filter validation test with 50 valid and 50 invalid expressions;
+        it also compares the valid programs with a baseline golden file.
 
 Tuesday, November 24, 2026 / The Tcpdump Group
   Summary for 1.11.1 libpcap release

@@ -1,0 +1,17 @@
+{
+  "root": "/home/dev/feedback/uid38805",
+  "B": "/home/dev/feedback/uid38805",
+  "sha": "602de22b1281e2100e84f483e286b92c9b9d3e9e",
+  "wslDistro": "Ubuntu-26.04",
+  "source": {
+    "owner": "the-tcpdump-group",
+    "repo": "libpcap",
+    "sha": "602de22b1281e2100e84f483e286b92c9b9d3e9e"
+  },
+  "fork": {
+    "owner": "Rrr119",
+    "repo": "libpcap",
+    "cloneUrl": "https://github.com/Rrr119/libpcap.git"
+  },
+  "at": "2026-11-25T16:04:03.235Z"
+}

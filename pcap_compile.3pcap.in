@@ -93,6 +93,13 @@ from a savefile, regardless of the OS it is valid for
 .B DLT_LINUX_SLL2
 only.
 .PP
+Before returning,
+.BR pcap_compile ()
+validates the generated BPF program.  In particular, it rejects a program
+with an invalid opcode or jump target, and it rejects an expression that
+would use a constant packet offset that overflows 32 bits or that cannot fit
+into the configured snapshot length.
+.PP
 By convention, in this function both a null pointer and an empty string are
 valid arguments for the
 .I str

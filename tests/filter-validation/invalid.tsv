@@ -1,0 +1,51 @@
+# name	DLT	snaplen	optimize	expression
+syntax1	EN10MB	262144	1	ip and
+syntax2	EN10MB	262144	1	tcp port
+syntax3	EN10MB	262144	1	(tcp
+syntax4	EN10MB	262144	1	tcp)
+syntax5	EN10MB	262144	1	host
+syntax6	EN10MB	262144	1	port 80 and
+syntax7	EN10MB	262144	1	ip[
+syntax8	EN10MB	262144	1	ip[0:
+syntax9	EN10MB	262144	1	ip[0:5]
+syntax10	EN10MB	262144	1	ip[0:0]
+syntax11	EN10MB	262144	1	ether[0:3]
+syntax12	EN10MB	262144	1	ip[-1] = 0
+syntax13	EN10MB	262144	1	ip[0x] = 0
+div0	EN10MB	262144	1	ip[0] / 0 = 0
+mod0	EN10MB	262144	1	ip[0] % 0 = 0
+lsh32	EN10MB	262144	1	ip[0] << 32 = 0
+rsh40	EN10MB	262144	1	ip[0] >> 40 = 0
+unknown	EN10MB	262144	1	foo
+badproto	EN10MB	262144	1	ip proto 999
+badexpr	EN10MB	262144	1	tcp[13] &
+badhost	EN10MB	262144	1	host 999.999.999.999
+badnet	EN10MB	262144	1	net 192.0.2.0/33
+badether	EN10MB	262144	1	ether host 00:11:22:33:44
+badvlan	EN10MB	262144	1	vlan 5000
+badifindex	EN10MB	262144	1	ifindex 1
+of1	EN10MB	262144	0	ip[4294967295:1] = 0
+of2	EN10MB	262144	1	ip[4294967294:4] = 0
+of3	EN10MB	262144	1	ip[4294967280:4] = 0
+of4	EN10MB	262144	0	ether[4294967295:1] = 0
+oob1	EN10MB	64	0	ether[64:1] = 0
+oob2	EN10MB	64	1	ether[63:2] = 0
+oob3	EN10MB	64	0	ip[100:4] = 0
+oob4	EN10MB	64	1	tcp[100:4] = 0
+oob5	EN10MB	128	1	udp[1000:2] = 0
+oob6	EN10MB	128	1	ip6[65535:1] = 0
+oob7	EN10MB	10	1	ip[0:1] = 0
+oob8	EN10MB	13	1	tcp[0:1] = 0
+oob9	EN10MB	262144	0	ip[262127:4] = 0
+oob10	EN10MB	262144	1	ip[300000:4] = 0
+oob11	EN10MB	262144	1	ip[262144:1] = 0
+oob12	EN10MB	262144	1	tcp[262140:4] = 0
+zero1	EN10MB	262144	1	ip[0] / (1 - 1) = 0
+zero2	EN10MB	262144	1	ip[0] % (2 - 2) = 0
+shift1	EN10MB	262144	1	ip[0] << (20 + 20) = 0
+shift2	EN10MB	262144	1	ip[0] >> (31 + 1) = 0
+zero3	EN10MB	262144	1	ip[0] / (0 * 1) = 0
+mulof	EN10MB	262144	1	ip[4294967295 * 2:1] = 0
+tcpof	EN10MB	262144	1	tcp[4294967295:4] = 0
+ip6of	EN10MB	262144	1	ip6[4294967295:4] = 0
+vlanof	EN10MB	262144	1	vlan and ip[4294967295] = 0

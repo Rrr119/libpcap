@@ -1,0 +1,51 @@
+# name	DLT	snaplen	optimize	expression
+empty	EN10MB	262144	1	@empty@
+ip	EN10MB	262144	1	ip
+ip6	EN10MB	262144	1	ip6
+arp	EN10MB	262144	1	arp
+tcp	EN10MB	262144	1	tcp
+udp	EN10MB	262144	1	udp
+icmp	EN10MB	262144	1	icmp
+icmp6	EN10MB	262144	1	icmp6
+tcp80	EN10MB	262144	1	tcp port 80
+tcp443	EN10MB	262144	1	tcp dst port 443
+udp53	EN10MB	262144	1	udp src port 53
+port53	EN10MB	262144	1	port 53
+portrange	EN10MB	262144	1	portrange 1000-2000
+host4	EN10MB	262144	1	host 192.0.2.1
+srchost4	EN10MB	262144	1	src host 192.0.2.1
+dstnet4	EN10MB	262144	1	dst net 192.0.2.0/24
+masknet4	EN10MB	262144	1	net 198.51.100.0 mask 255.255.255.0
+host6	EN10MB	262144	1	host 2001:db8::1
+net6	EN10MB	262144	1	net 2001:db8::/32
+etherhost	EN10MB	262144	1	ether host 00:11:22:33:44:55
+ethersrc	EN10MB	262144	1	ether src 00:11:22:33:44:55
+ether0	EN10MB	262144	1	ether[0:2] = 0x0800
+ether12	EN10MB	262144	1	ether[12:2] = 0x0806
+ip0mask	EN10MB	262144	1	ip[0] & 0xf0 = 0x40
+ip8	EN10MB	262144	1	ip[8] < 64
+ip9	EN10MB	262144	1	ip[9] = 6
+ip2	EN10MB	262144	1	ip[2:2] > 100
+tcpsyn	EN10MB	262144	1	tcp[13] & 2 != 0
+tcp0	EN10MB	262144	1	tcp[0:2] = 80
+udp8	EN10MB	262144	1	udp[8:4] = 0
+ip6nh	EN10MB	262144	1	ip6[6] = 17
+ip6ver	EN10MB	262144	1	ip6[0:4] & 0xf0000000 = 0x60000000
+vlanip	EN10MB	262144	1	vlan and ip
+vlan100	EN10MB	262144	1	vlan 100 and tcp
+mplsip	EN10MB	262144	1	mpls and ip
+pppoesip	EN10MB	262144	1	pppoes and ip
+geneveip	EN10MB	262144	1	geneve and ip
+vxlanip	EN10MB	262144	1	vxlan and ip
+proto4	EN10MB	262144	1	ip proto 6
+proto6	EN10MB	262144	1	ip6 proto 17
+chain4	EN10MB	262144	1	ip protochain 6
+chain6	EN10MB	262144	1	ip6 protochain 17
+tcpudp53	EN10MB	262144	1	(tcp or udp) and port 53
+netport	EN10MB	262144	1	src net 10.0.0.0/8 and dst port 8080
+len1500	EN10MB	262144	1	len <= 1500
+tcpflags	EN10MB	262144	1	tcp[tcpflags] & tcp-syn != 0
+icmptype	EN10MB	262144	1	icmp[icmptype] = icmp-echo
+small1	EN10MB	64	1	ether[0:2] = 0x0800
+small2	EN10MB	64	0	tcp[13] & 2 != 0
+small3	EN10MB	100	1	ip[60:1] = 6

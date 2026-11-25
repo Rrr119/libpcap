@@ -54,6 +54,7 @@
 
 #include <pcap-int.h>
 
+#include <stdio.h>
 #include <stdlib.h>
 
 #ifdef __linux__
@@ -557,29 +558,92 @@ pcapint_valid_insn(const struct bpf_insn *insn)
 }
 
 /*
- * Return true if the 'fcode' is a valid filter program.
- * The constraints are that each jump be forward and to a valid
- * code and that the code terminates with either an accept or reject.
+ * Return true if the instruction cannot access packet data outside of a
+ * buffer of the given snapshot length.  This is a static check: for
+ * indirect loads the value in X is unknown, but a constant base offset that
+ * is already out of range cannot become valid by adding a non-negative X.
+ */
+static int
+packet_access_within_snaplen(const struct bpf_insn *p, const u_int snaplen)
+{
+	u_int size;
+
+	switch (p->code) {
+	case BPF_LD|BPF_W|BPF_ABS:
+	case BPF_LD|BPF_W|BPF_IND:
+		size = 4;
+		break;
+	case BPF_LD|BPF_H|BPF_ABS:
+	case BPF_LD|BPF_H|BPF_IND:
+		size = 2;
+		break;
+	case BPF_LD|BPF_B|BPF_ABS:
+	case BPF_LD|BPF_B|BPF_IND:
+	case BPF_LDX|BPF_MSH|BPF_B:
+		size = 1;
+		break;
+	default:
+		return 1;
+	}
+
+#if defined(SKF_AD_OFF) && defined(SKF_AD_MAX)
+	/*
+	 * Linux BPF extensions use negative offsets in the same field.  These
+	 * are not packet offsets, so the snapshot length does not apply.
+	 */
+	if ((bpf_int32)p->k >= SKF_AD_OFF &&
+	    (bpf_int32)p->k < SKF_AD_OFF + SKF_AD_MAX)
+		return 1;
+#endif
+
+	return p->k <= snaplen && size <= snaplen - p->k;
+}
+
+/*
+ * Return true if the 'fcode' is a valid filter program.  The constraints are
+ * that each jump target be within the program and that the code terminates
+ * with either an accept or reject.
+ *
+ * If check_snaplen is true, also reject packet loads that cannot possibly be
+ * in bounds for any packet captured with the specified snapshot length.
  *
  * The kernel needs to be able to verify an application's filter code.
  * Otherwise, a bogus program could easily crash the system.
  */
-int
-pcapint_validate_filter(const struct bpf_insn *f, const unsigned len)
+static int
+validate_filter_internal(const struct bpf_insn *f, const unsigned len,
+    const u_int snaplen, const int check_snaplen, char *errbuf,
+    const size_t errbuf_size)
 {
 	u_int i, from;
 	const struct bpf_insn *p;
 
 	// This also rejects any negative argument converted to unsigned.
 DIAG_OFF_TAUTOLOGICAL_COMPARE
-	if (len < 1 || len > BPF_MAXINSNS || f + len < f)
+	if (f == NULL || len < 1 || len > BPF_MAXINSNS || f + len < f) {
+		if (errbuf != NULL && errbuf_size != 0)
+			(void)snprintf(errbuf, errbuf_size,
+			    "invalid filter program length");
 		return 0;
+	}
 DIAG_ON_TAUTOLOGICAL_COMPARE
 
 	for (i = 0; i < len; ++i) {
 		p = &f[i];
-		if (! pcapint_valid_insn(p))
+		if (! pcapint_valid_insn(p)) {
+			if (errbuf != NULL && errbuf_size != 0)
+				(void)snprintf(errbuf, errbuf_size,
+				    "instruction %u has an invalid opcode or operand",
+				    i);
 			return 0;
+		}
+		if (check_snaplen && ! packet_access_within_snaplen(p, snaplen)) {
+			if (errbuf != NULL && errbuf_size != 0)
+				(void)snprintf(errbuf, errbuf_size,
+				    "instruction %u accesses packet data beyond snapshot length %u",
+				    i, snaplen);
+			return 0;
+		}
 		switch (BPF_CLASS(p->code)) {
 		case BPF_JMP:
 			/*
@@ -623,8 +687,13 @@ DIAG_ON_TAUTOLOGICAL_COMPARE
 				 * and enforced, and that the pointer does not
 				 * overflow.
 				 */
-				if (from + p->k >= len)
+				if (from + p->k >= len) {
+					if (errbuf != NULL && errbuf_size != 0)
+						(void)snprintf(errbuf, errbuf_size,
+						    "instruction %u jumps outside the filter program",
+						    i);
 					return 0;
+				}
 				/*
 				 * The only type of infinite loop that can be
 				 * detected in this function is a "ja L" that
@@ -634,20 +703,50 @@ DIAG_ON_TAUTOLOGICAL_COMPARE
 				 * would wrap the pointer equivalently on
 				 * 32-bit architectures.
 				 */
-				if ((bpf_int32)p->k == -1)
+				if ((bpf_int32)p->k == -1) {
+					if (errbuf != NULL && errbuf_size != 0)
+						(void)snprintf(errbuf, errbuf_size,
+						    "instruction %u jumps to itself",
+						    i);
 					return 0;
+				}
 				break;
 			case BPF_JEQ:
 			case BPF_JGT:
 			case BPF_JGE:
 			case BPF_JSET:
-				if (from + p->jt >= len || from + p->jf >= len)
+				if (from + p->jt >= len || from + p->jf >= len) {
+					if (errbuf != NULL && errbuf_size != 0)
+						(void)snprintf(errbuf, errbuf_size,
+						    "instruction %u jumps outside the filter program",
+						    i);
 					return 0;
+				}
 				break;
 			}
 		}
 	}
-	return BPF_CLASS(f[len - 1].code) == BPF_RET;
+	if (BPF_CLASS(f[len - 1].code) != BPF_RET) {
+		if (errbuf != NULL && errbuf_size != 0)
+			(void)snprintf(errbuf, errbuf_size,
+			    "filter program does not end with a return instruction");
+		return 0;
+	}
+	return 1;
+}
+
+int
+pcapint_validate_filter(const struct bpf_insn *f, const unsigned len)
+{
+	return validate_filter_internal(f, len, 0, 0, NULL, 0);
+}
+
+int
+pcapint_validate_filter_snaplen(const struct bpf_insn *f, const unsigned len,
+    const u_int snaplen, char *errbuf, const size_t errbuf_size)
+{
+	return validate_filter_internal(f, len, snaplen, 1, errbuf,
+	    errbuf_size);
 }
 
 /*
